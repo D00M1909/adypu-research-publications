@@ -19,6 +19,10 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/units.php';
 
 const AUTH_COOKIE      = 'adypu_research';
+// Its own session cookie, not PHP's default PHPSESSID. The attendance dashboard
+// uses PHPSESSID on the same host and the same session folder, so sharing the
+// name meant a dashboard admin's session was read here as a signed-in admin.
+const AUTH_SESSION     = 'adypu_research_sid';
 const AUTH_REMEMBER_DAYS = 30;
 const AUTH_MAX_FAILS   = 8;
 const AUTH_LOCK_MINS   = 15;
@@ -29,7 +33,10 @@ const AUTH_MIN_PASSWORD = 8;
 // (which is exactly what auth_user() does when it finds a disabled account)
 // would otherwise regenerate an id that no longer exists.
 function auth_session(): void {
-    if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        session_name(AUTH_SESSION);
+        session_start();
+    }
 }
 
 function auth_boot(): void {
@@ -44,7 +51,7 @@ function auth_boot(): void {
         // member out of a site that was still serving over http.
         'secure'   => !empty($_SERVER['HTTPS']),
     ]);
-    session_start();
+    auth_session();
     if (empty($_SESSION['email'])) auth_resume();
 }
 
@@ -92,6 +99,12 @@ function auth_user(): ?array {
         if ($stored) {
             unset($_SESSION['is_config_admin']);
             return $stored;
+        }
+        // Only this site's own config admin. A session written by some other
+        // app on the host can carry the same flag.
+        if (ADMIN_EMAIL === '' || $_SESSION['email'] !== auth_key(ADMIN_EMAIL)) {
+            auth_logout();
+            return null;
         }
         return ['email' => $_SESSION['email'], 'name' => 'Administrator',
                 'unit' => '', 'status' => 'active', 'admin' => true];
