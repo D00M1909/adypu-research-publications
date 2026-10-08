@@ -139,7 +139,7 @@
       var svg = '';
       var nonzero = values.filter(function (v) { return v > 0; }).length;
       if (total === 0) {
-        svg = '<circle cx="' + r + '" cy="' + r + '" r="' + r + '" fill="#e8ecf2"/>';
+        svg = '<circle cx="' + r + '" cy="' + r + '" r="' + r + '" style="fill:var(--track)"/>';
       } else {
         var a0 = -Math.PI / 2;
         values.forEach(function (v, i) {
@@ -149,7 +149,7 @@
           var a1 = a0 + v / total * 2 * Math.PI;
           svg += '<path d="M' + r + ' ' + r + ' L' + (r + r * Math.cos(a0)).toFixed(2) + ' ' + (r + r * Math.sin(a0)).toFixed(2) +
             ' A' + r + ' ' + r + ' 0 ' + (a1 - a0 > Math.PI ? 1 : 0) + ' 1 ' + (r + r * Math.cos(a1)).toFixed(2) + ' ' + (r + r * Math.sin(a1)).toFixed(2) +
-            ' Z" fill="' + d.units[i].color + '" stroke="#fff" stroke-width="2">' + title + '</path>';
+            ' Z" fill="' + d.units[i].color + '" style="stroke:var(--surface-raised)" stroke-width="2">' + title + '</path>';
           a0 = a1;
         });
       }

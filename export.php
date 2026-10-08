@@ -84,7 +84,7 @@ if ($format === 'xlsx') {
 }
 
 // PDF: a plain page the browser prints, which every phone and PC can save as PDF.
-html_head('Export');
+html_head('Export', false);
 ?>
 <body class="print-page" onload="window.print()">
 <div class="print-head" style="display:block">

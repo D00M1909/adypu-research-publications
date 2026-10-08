@@ -19,7 +19,7 @@ $byUnit = count_by_unit_type($pubs, $units);
 $years = years_with_data($allKind);
 $yearUnit = count_by_year_unit($allKind, $years, $units);
 $cur = current_academic_year();
-$curByType = count_by_type(array_filter($allKind, fn($p) => $p['ay'] === $cur));
+$curCount = count(array_filter($allKind, fn($p) => $p['ay'] === $cur));
 $reporting = count(array_filter($byUnit, fn($c) => array_sum($c) > 0));
 $word = $view === 'partner' ? 'partner' : 'school';
 
@@ -35,9 +35,8 @@ echo flash();
 echo totals_card(
     $ay !== '' ? 'Publications in ' . $ay : 'All publications',
     array_sum($byType),
-    $ay !== '' ? $reporting . ' of ' . count($units) . ' ' . $word . 's reporting' : '+' . array_sum($curByType) . ' in ' . $cur . ' so far',
-    $byType,
-    $ay === '' ? $curByType : null
+    $ay !== '' ? $reporting . ' of ' . count($units) . ' ' . $word . 's reporting' : $curCount . ' in ' . $cur . ' so far',
+    $byType
 );
 ?>
 <div class="section-title"><h2><?= $view === 'partner' ? 'Knowledge partners' : 'Schools' ?></h2><span>Click a <?= $word ?> to open it</span></div>

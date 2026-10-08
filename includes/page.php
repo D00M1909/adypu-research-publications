@@ -24,12 +24,32 @@ function asset(string $path): string {
     return $path . '?v=' . (is_file($file) ? filemtime($file) : 0);
 }
 
-function html_head(string $title): void {
+// $themed is false for the PDF print page, which always prints light.
+function html_head(string $title, bool $themed = true): void {
     ?><!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<?php if ($themed): ?>
+<script>
+// Runs before the page paints so dark mode never flashes light. A saved choice
+// wins; otherwise the site follows the system setting, live.
+(function () {
+  var root = document.documentElement, mq = matchMedia('(prefers-color-scheme: dark)'), saved = null;
+  try { saved = localStorage.getItem('theme'); } catch (e) {}
+  var set = function (t) { root.dataset.theme = t; };
+  set(saved || (mq.matches ? 'dark' : 'light'));
+  mq.addEventListener('change', function (e) { if (!saved) set(e.matches ? 'dark' : 'light'); });
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('[data-theme-toggle]')) return;
+    saved = root.dataset.theme === 'dark' ? 'light' : 'dark';
+    set(saved);
+    try { localStorage.setItem('theme', saved); } catch (e) {}
+  });
+})();
+</script>
+<?php endif ?>
 <title><?= e($title) ?> &middot; ADYPU Research Publications</title>
 <link rel="icon" href="<?= asset('img/favicon.png') ?>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -78,7 +98,7 @@ function sidebar(array $u, string $active): string {
             . $nav('all', 'list.php', 'list', 'All publications', count(pubs_all()))
             . $nav('accounts', 'accounts.php', 'users', 'Faculty accounts', $pending ?: null)
             . '<div class="grp">Institutions</div>'
-            . $nav('adypu', 'admin.php?view=adypu', 'eng', 'ADYPU schools', count(SCHOOLS))
+            . $nav('adypu', 'admin.php?view=adypu', 'eng', 'ADYPU', count(SCHOOLS))
             . $nav('partner', 'admin.php?view=partner', 'partner', 'Knowledge partners', count(PARTNERS));
     }
     if (($u['unit'] ?? '') !== '') {
@@ -90,6 +110,7 @@ function sidebar(array $u, string $active): string {
     $initials = implode('', array_map(fn($w) => mb_substr($w, 0, 1), array_slice(preg_split('/\s+/', preg_replace('/^(Dr|Prof|Mr|Ms|Mrs)\.?\s+/i', '', trim($u['name'] ?? 'A'))), 0, 2)));
     $sub = ($u['erp'] ?? '') !== '' ? 'ERP ' . $u['erp'] : $u['email'];
     $h .= '<div class="who"><span class="avatar">' . e(mb_strtoupper($initials)) . '</span><span class="who-text"><b>' . e($u['name'] ?? '') . '</b><span>' . e($sub) . '</span></span>'
+        . '<button class="who-out theme-btn" type="button" data-theme-toggle title="Light or dark" aria-label="Switch light or dark mode">' . icon('moon', 'ic-moon') . icon('sun', 'ic-sun') . '</button>'
         . '<a class="who-out" href="login.php?logout=1" title="Sign out" aria-label="Sign out">' . icon('out') . '</a></div></aside>'
         . '<div class="nav-scrim" onclick="document.body.classList.remove(\'nav-open\')"></div>';
     return $h;
@@ -123,8 +144,8 @@ function redirect(string $to): never {
 // --- Pieces the admin pages and the faculty pages share --------------------
 
 // The totals card: a count, then one bar split by type in the type colours,
-// then each type's count. $delta is an optional [type => n] shown beside each.
-function totals_card(string $label, int $total, string $sub, array $byType, ?array $delta = null): string {
+// then each type's count.
+function totals_card(string $label, int $total, string $sub, array $byType): string {
     $types = pub_types();
     $bar = '';
     foreach ($byType as $t => $n) {
@@ -134,7 +155,7 @@ function totals_card(string $label, int $total, string $sub, array $byType, ?arr
     $keys = '';
     foreach ($byType as $t => $n) {
         $keys .= '<div class="key" style="border-color:' . $types[$t]['color'] . '"><span class="l">' . e($types[$t]['name']) . '</span>'
-               . '<span class="n">' . $n . ($delta !== null ? '<small>+' . ($delta[$t] ?? 0) . '</small>' : '') . '</span></div>';
+               . '<span class="n">' . $n . '</span></div>';
     }
     return '<div class="card totals"><div class="tot"><div class="k">' . e($label) . '</div><div class="v">' . $total . '</div><div class="d">' . e($sub) . '</div></div>'
          . '<div class="tot-right"><div class="bigbar">' . $bar . '</div><div class="keys">' . $keys . '</div></div></div>';
@@ -152,7 +173,11 @@ function unit_tile(string $name, ?string $iconId, array $byType, ?string $href =
     $sub = $byType['journal'] . ' journal · ' . $byType['conf'] . ' conference · ' . ($byType['book'] + $byType['chapter']) . ' book · ' . ($byType['patent'] + $byType['copyright']) . ' IP';
     $tag = $href ? 'a' : 'div';
     return '<' . $tag . ' class="card tile' . ($n === 0 ? ' zero' : '') . '"' . ($href ? ' href="' . e($href) . '"' : '') . '>'
-         . ($iconId ? '<span class="tile-ic">' . icon($iconId) . '</span>' : '')
+         . ($iconId === 'partner'
+             // Partners share one handshake icon, which tells eleven tiles apart
+             // by nothing; the name's first letter does, as on the dashboard.
+             ? '<span class="tile-monogram" aria-hidden="true">' . e(mb_strtoupper(mb_substr($name, 0, 1))) . '</span>'
+             : ($iconId ? '<span class="tile-ic">' . icon($iconId) . '</span>' : ''))
          . '<span class="name">' . e($name) . '</span><span class="count">' . $n . ' <small>publication' . ($n === 1 ? '' : 's') . '</small></span>'
          . '<span class="stack">' . $stack . '</span><span class="sub">' . $sub . '</span></' . $tag . '>';
 }
@@ -163,7 +188,7 @@ function pie_svg(array $slices, int $size, float $hole = 0, string $centerTop = 
     $r = $size / 2;
     $out = '';
     if ($total === 0) {
-        $out = '<circle cx="' . $r . '" cy="' . $r . '" r="' . $r . '" fill="#e8ecf2"/>';
+        $out = '<circle cx="' . $r . '" cy="' . $r . '" r="' . $r . '" style="fill:var(--track)"/>';
     } else {
         $a0 = -M_PI / 2;
         $nonzero = array_values(array_filter($slices, fn($s) => $s[1] > 0));
@@ -174,13 +199,13 @@ function pie_svg(array $slices, int $size, float $hole = 0, string $centerTop = 
             }
             $a1 = $a0 + $s[1] / $total * 2 * M_PI;
             $large = $a1 - $a0 > M_PI ? 1 : 0;
-            $out .= sprintf('<path d="M%1$s %1$s L%2$.2f %3$.2f A%1$s %1$s 0 %4$d 1 %5$.2f %6$.2f Z" fill="%7$s" stroke="#fff" stroke-width="2"><title>%8$s: %9$d</title></path>',
+            $out .= sprintf('<path d="M%1$s %1$s L%2$.2f %3$.2f A%1$s %1$s 0 %4$d 1 %5$.2f %6$.2f Z" fill="%7$s" style="stroke:var(--surface-raised)" stroke-width="2"><title>%8$s: %9$d</title></path>',
                 $r, $r + $r * cos($a0), $r + $r * sin($a0), $large, $r + $r * cos($a1), $r + $r * sin($a1), $s[2], e($s[0]), $s[1]);
             $a0 = $a1;
         }
     }
     if ($hole > 0) {
-        $out .= '<circle cx="' . $r . '" cy="' . $r . '" r="' . ($r * $hole) . '" fill="#fff"/>';
+        $out .= '<circle cx="' . $r . '" cy="' . $r . '" r="' . ($r * $hole) . '" style="fill:var(--surface-raised)"/>';
         if ($centerTop !== '') $out .= '<text x="' . $r . '" y="' . ($r + 4) . '" text-anchor="middle" class="pie-big">' . e($centerTop) . '</text>';
         if ($centerBottom !== '') $out .= '<text x="' . $r . '" y="' . ($r + 24) . '" text-anchor="middle" class="pie-small">' . e($centerBottom) . '</text>';
     }
