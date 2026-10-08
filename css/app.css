@@ -33,6 +33,7 @@
   --side-on-bg: #fff;
   --side-on-ink: var(--red-primary);
   --auth-bg: linear-gradient(135deg, var(--red-primary), var(--red-secondary));
+  --caret: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235b6678' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   --side-w: 248px;
   color-scheme: light;
 }
@@ -71,6 +72,7 @@
   --side-on-bg: var(--red-primary);
   --side-on-ink: #fff;
   --auth-bg: radial-gradient(120% 80% at 0% 0%, #c21b27, transparent 70%), linear-gradient(135deg, #3a0d14, #0c0a0e);
+  --caret: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2395a1b4' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   color-scheme: dark;
 }
 :root[data-theme="dark"] .side { border-right: 1px solid var(--hairline); }
@@ -93,6 +95,11 @@ body {
 }
 a { color: inherit; }
 button, input, select, textarea { font: inherit; color: inherit; }
+/* Every dropdown is drawn by us, not the browser: the native one kept a white
+   option list under light text in dark mode, plus its own border and ring. */
+select { appearance: none; -webkit-appearance: none; background-image: var(--caret); background-repeat: no-repeat; background-position: right 11px center; background-size: 14px; }
+select:focus-visible { outline: none; }
+option, optgroup { background-color: var(--surface-raised); color: var(--ink); }
 ::selection { background: var(--red-primary); color: #fff; }
 :focus-visible { outline: 2px solid var(--red-primary); outline-offset: 2px; border-radius: 4px; }
 .ic { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
@@ -167,7 +174,8 @@ body.app { display: grid; grid-template-columns: var(--side-w) minmax(0, 1fr); m
 .seg .on { background: var(--surface-raised); color: var(--red-primary); box-shadow: var(--shadow-sm); }
 .sel { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--hairline); border-radius: 10px; padding: 0 11px; font-size: 13.5px; font-weight: 600; background: var(--surface-raised); min-height: 38px; }
 .sel .ic { width: 15px; height: 15px; color: var(--ink-muted); }
-.sel select { border: 0; background: transparent; padding: 8px 2px; font-weight: 600; cursor: pointer; outline: none; }
+.sel:focus-within { border-color: var(--red-primary); box-shadow: 0 0 0 3px var(--red-tint-strong); }
+.sel select { border: 0; background-color: transparent; padding: 8px 22px 8px 2px; background-position: right 0 center; font-weight: 600; cursor: pointer; outline: none; }
 .menu { position: relative; }
 .menu > summary { list-style: none; }
 .menu > summary::-webkit-details-marker { display: none; }
@@ -281,6 +289,7 @@ td:has(> .t-title) { min-width: 220px; }
   border: 1px solid var(--hairline); border-radius: 9px; background: var(--surface-raised); padding: 9px 11px; font-size: 14px; min-height: 40px; width: 100%;
 }
 .field textarea { min-height: 84px; resize: vertical; }
+.field select { background: var(--surface-raised) var(--caret) no-repeat right 11px center / 14px; padding-right: 34px; }
 .field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--red-primary); box-shadow: 0 0 0 3px var(--red-tint-strong); }
 .field.has-error input, .field.has-error select, .field.has-error textarea { border-color: var(--red-primary); }
 .field .err { font-size: 12px; color: var(--red-primary); font-weight: 600; }
