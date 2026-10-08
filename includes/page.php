@@ -109,9 +109,9 @@ function sidebar(array $u, string $active): string {
     $h .= $nav('account', 'account.php', 'user', 'My account') . '</nav>';
     $initials = implode('', array_map(fn($w) => mb_substr($w, 0, 1), array_slice(preg_split('/\s+/', preg_replace('/^(Dr|Prof|Mr|Ms|Mrs)\.?\s+/i', '', trim($u['name'] ?? 'A'))), 0, 2)));
     $sub = ($u['erp'] ?? '') !== '' ? 'ERP ' . $u['erp'] : $u['email'];
-    $h .= '<div class="who"><span class="avatar">' . e(mb_strtoupper($initials)) . '</span><span class="who-text"><b>' . e($u['name'] ?? '') . '</b><span>' . e($sub) . '</span></span>'
-        . '<button class="who-out theme-btn" type="button" data-theme-toggle title="Light or dark" aria-label="Switch light or dark mode">' . icon('moon', 'ic-moon') . icon('sun', 'ic-sun') . '</button>'
-        . '<a class="who-out" href="login.php?logout=1" title="Sign out" aria-label="Sign out">' . icon('out') . '</a></div></aside>'
+    $h .= '<div class="who"><span class="avatar">' . e(mb_strtoupper($initials)) . '</span><span class="who-text"><b>' . e($u['name'] ?? '') . '</b><span>' . str_replace('@', '<wbr>@', e($sub)) . '</span></span>'
+        . '<div class="who-acts"><button class="who-out theme-btn" type="button" data-theme-toggle title="Light or dark" aria-label="Switch light or dark mode">' . icon('moon', 'ic-moon') . icon('sun', 'ic-sun') . '</button>'
+        . '<a class="who-out" href="login.php?logout=1" title="Sign out" aria-label="Sign out">' . icon('out') . '</a></div></div></aside>'
         . '<div class="nav-scrim" onclick="document.body.classList.remove(\'nav-open\')"></div>';
     return $h;
 }
