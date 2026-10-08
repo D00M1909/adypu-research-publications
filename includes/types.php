@@ -31,6 +31,8 @@ function pub_types(): array {
         'journal' => ['name' => 'Journal Paper', 'short' => 'Journal', 'icon' => 'journal', 'color' => '#C21B27', 'title' => 'title', 'source' => 'journal', 'date' => 'published', 'fields' => [
             'title'     => ['Title of the Paper', 'text', 'Full title as published', true],
             'journal'   => ['Name of Journal', 'text', 'Full name of the journal', true],
+            // Not in the workbook: added later, so every journal shows its rank.
+            'quartile'  => ['Journal Quartile', 'select', 'Q1 is the top 25% of journals in its field', true, ['Q1', 'Q2', 'Q3', 'Q4', 'Not ranked']],
             'issn'      => ['ISSN Number', 'text', 'International Standard Serial Number', true],
             'publisher' => ['Publisher', 'text', 'Name of publishing organisation', true],
             'pages'     => ['Page Numbers', 'text', 'e.g. pp. 45–57', true],

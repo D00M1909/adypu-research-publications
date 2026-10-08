@@ -24,12 +24,12 @@ check('date outside', in_academic_year('2026-06-01', '2025-26'), false);
 check('ten years offered', count(academic_years()), 10);
 
 echo "Fields match the workbook (plus proof)\n";
-$want = ['journal' => 14, 'conf' => 19, 'book' => 18, 'chapter' => 14, 'patent' => 18, 'copyright' => 14];
+$want = ['journal' => 15, 'conf' => 19, 'book' => 18, 'chapter' => 14, 'patent' => 18, 'copyright' => 14];
 foreach ($want as $t => $n) check("$t has $n", count(pub_type($t)['fields']) + 1, $n);
 
 echo "Reading a form\n";
 [$v, $err] = pub_read_fields('journal', []);
-check('empty journal lists required fields', array_keys($err), ['title', 'journal', 'issn', 'publisher', 'pages', 'issue', 'volume', 'published', 'indexing', 'doi', 'category']);
+check('empty journal lists required fields', array_keys($err), ['title', 'journal', 'quartile', 'issn', 'publisher', 'pages', 'issue', 'volume', 'published', 'indexing', 'doi', 'category']);
 [$v, $err] = pub_read_fields('conf', ['f_conf_dates_from' => '2026-01-10', 'f_conf_dates_to' => '2026-01-09']);
 check('dates backwards refused', $err['dates'] ?? '', 'Check the dates.');
 [$v, $err] = pub_read_fields('conf', ['f_conf_dates_from' => '2026-01-10']);
