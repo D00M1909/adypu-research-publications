@@ -1,0 +1,4 @@
+includes/config.local.php
+data/
+upload/
+.DS_Store

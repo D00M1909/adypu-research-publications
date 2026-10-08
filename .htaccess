@@ -1,0 +1,5 @@
+# The stored data, proof files and code that is only ever included are not
+# pages. The data files carry their own exit guard too; this also covers the
+# uploaded proofs, which have none.
+RedirectMatch 404 /(data|includes|tests|tools)(/|$)
+Options -Indexes

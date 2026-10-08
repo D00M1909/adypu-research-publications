@@ -1,0 +1,349 @@
+<?php
+// Faculty accounts, sessions, and the join codes that let a school or partner
+// onboard itself. Everything lives in data/faculty.php, behind store.php's
+// guard. Adapted from the attendance dashboard's includes/auth.php; the
+// accounts are separate, by decision, so signing up here is its own step.
+//
+// No email anywhere in here, and that is a constraint rather than a choice:
+// this host disables PHP's mail() and blocks outbound HTTP, so there is no
+// "click the link we sent you" to build. Verification is therefore either a
+// code handed out in advance or a human approving a queue, and this file does
+// both: a right code activates immediately, anything else waits for an admin.
+//
+// Passwords are bcrypt via password_hash(). The first admin comes from
+// ADMIN_EMAIL / ADMIN_HASH in includes/config.local.php, which lives only on
+// the server, so no bootstrap account is ever committed.
+
+require_once __DIR__ . '/store.php';
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/units.php';
+
+const AUTH_COOKIE      = 'adypu_research';
+const AUTH_REMEMBER_DAYS = 30;
+const AUTH_MAX_FAILS   = 8;
+const AUTH_LOCK_MINS   = 15;
+const AUTH_MIN_PASSWORD = 8;
+
+// Anything that writes to $_SESSION goes through this first. auth_logout()
+// destroys the session, so a sign-out followed by a sign-in inside one request
+// (which is exactly what auth_user() does when it finds a disabled account)
+// would otherwise regenerate an id that no longer exists.
+function auth_session(): void {
+    if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+}
+
+function auth_boot(): void {
+    if (session_status() === PHP_SESSION_ACTIVE) return;
+    session_set_cookie_params([
+        'lifetime' => AUTH_REMEMBER_DAYS * 86400,
+        'path'     => '/',
+        'httponly' => true,
+        'samesite' => 'Lax',
+        // Conditional, not always on. Their TLS was fully dead for three days
+        // in Aug 2026; a hard secure flag would have logged every faculty
+        // member out of a site that was still serving over http.
+        'secure'   => !empty($_SERVER['HTTPS']),
+    ]);
+    session_start();
+    if (empty($_SESSION['email'])) auth_resume();
+}
+
+// --- The account file -------------------------------------------------------
+
+function auth_data(): array {
+    $d = store_read('faculty');
+    $d['users'] ??= [];
+    $d['codes'] ??= [];
+    return $d;
+}
+
+// Emails are the primary key, so they are normalised once, here, and every
+// lookup goes through it. Two accounts differing only in case would each get
+// half a faculty member's submissions.
+function auth_key(string $email): string {
+    return strtolower(trim($email));
+}
+
+function auth_find(string $email): ?array {
+    $u = auth_data()['users'][auth_key($email)] ?? null;
+    return is_array($u) ? $u + ['email' => auth_key($email)] : null;
+}
+
+function auth_put(string $email, array $fields): void {
+    $key = auth_key($email);
+    store_update('faculty', function (array $d) use ($key, $fields) {
+        $d['users'][$key] ??= [];
+        foreach ($fields as $k => $v) $d['users'][$key][$k] = $v;
+        return $d;
+    });
+}
+
+// --- Who is asking ----------------------------------------------------------
+
+// Re-read from the file on every request rather than trusting a copy in the
+// session: disabling an account has to take effect on that account's next
+// click, not whenever it next happens to log in.
+function auth_user(): ?array {
+    if (empty($_SESSION['email'])) return null;
+    if (!empty($_SESSION['is_config_admin'])) {
+        // Promoted mid-session by a password change: the stored record is the
+        // account now, so stop answering with the synthetic one.
+        $stored = auth_find($_SESSION['email']);
+        if ($stored) {
+            unset($_SESSION['is_config_admin']);
+            return $stored;
+        }
+        return ['email' => $_SESSION['email'], 'name' => 'Administrator',
+                'unit' => '', 'status' => 'active', 'admin' => true];
+    }
+    $u = auth_find($_SESSION['email']);
+    if (!$u || ($u['status'] ?? '') === 'disabled') {
+        auth_logout();
+        return null;
+    }
+    return $u;
+}
+
+function auth_is_admin(): bool {
+    $u = auth_user();
+    return $u !== null && !empty($u['admin']);
+}
+
+// Sends anywhere unauthenticated back to the login page, remembering where they
+// were headed so a link shared in a message still lands on the right page.
+function auth_require(bool $admin = false): array {
+    $u = auth_user();
+    if ($u === null) {
+        header('Location: login.php?next=' . urlencode($_SERVER['REQUEST_URI'] ?? 'index.php'));
+        exit;
+    }
+    if ($admin && empty($u['admin'])) {
+        http_response_code(403);
+        exit('Not permitted.');
+    }
+    return $u;
+}
+
+// --- Logging in -------------------------------------------------------------
+
+// Returns '' on success, or a message safe to show. Deliberately the same
+// message for a wrong password and an unknown email: distinguishing them turns
+// the login form into a list of who works here.
+function auth_login(string $email, string $password): string {
+    auth_session();
+    $key = auth_key($email);
+
+    $u = auth_find($key);
+
+    // The bootstrap admin from config.local.php, and only while no stored
+    // account has claimed that email. The order matters: once this account
+    // changes its password it becomes a real record (auth_change_password),
+    // and that record has to win from then on. Checked first, the config hash
+    // would stay live forever as a second door into an admin account that no
+    // one could close without FTP.
+    if ($u === null && defined('ADMIN_EMAIL') && defined('ADMIN_HASH') && ADMIN_EMAIL !== ''
+        && $key === auth_key(ADMIN_EMAIL) && password_verify($password, ADMIN_HASH)) {
+        session_regenerate_id(true);
+        $_SESSION['email'] = $key;
+        $_SESSION['is_config_admin'] = true;
+        return '';
+    }
+
+    if ($u && ($u['locked'] ?? 0) > time()) {
+        return 'Too many attempts. Try again in ' . max(1, (int) ceil((($u['locked'] - time()) / 60))) . ' minutes.';
+    }
+    if (!$u || ($u['status'] ?? '') === 'disabled' || !password_verify($password, $u['hash'] ?? '')) {
+        if ($u) {
+            $fails = (int) ($u['fails'] ?? 0) + 1;
+            auth_put($key, [
+                'fails'  => $fails,
+                'locked' => $fails >= AUTH_MAX_FAILS ? time() + AUTH_LOCK_MINS * 60 : 0,
+            ]);
+        }
+        return 'That email and password do not match.';
+    }
+
+    session_regenerate_id(true);
+    $_SESSION['email'] = $key;
+    unset($_SESSION['is_config_admin']);
+    auth_put($key, ['fails' => 0, 'locked' => 0, 'seen' => date('Y-m-d H:i')]);
+    auth_remember($key);
+    return '';
+}
+
+function auth_logout(): void {
+    $_SESSION = [];
+    setcookie(AUTH_COOKIE, '', ['expires' => time() - 3600, 'path' => '/']);
+    if (session_status() === PHP_SESSION_ACTIVE) session_destroy();
+}
+
+// A 30 day token beside the session, because session files on shared hosting are
+// garbage-collected on a schedule that is not ours to set. A faculty member
+// logged out at 08:59 is the failure that gets the whole thing abandoned.
+//
+// ponytail: the token is not rotated on use, so a stolen cookie stays valid
+// until it expires or the admin disables the account.
+function auth_remember(string $key): void {
+    $token = bin2hex(random_bytes(32));
+    auth_put($key, ['remember' => hash('sha256', $token)]);
+    setcookie(AUTH_COOKIE, $key . '|' . $token, [
+        'expires'  => time() + AUTH_REMEMBER_DAYS * 86400,
+        'path'     => '/',
+        'httponly' => true,
+        'samesite' => 'Lax',
+        'secure'   => !empty($_SERVER['HTTPS']),
+    ]);
+}
+
+function auth_resume(): void {
+    [$key, $token] = array_pad(explode('|', (string) ($_COOKIE[AUTH_COOKIE] ?? ''), 2), 2, '');
+    if ($key === '' || $token === '') return;
+    $u = auth_find($key);
+    if (!$u || empty($u['remember']) || ($u['status'] ?? '') === 'disabled') return;
+    if (!hash_equals($u['remember'], hash('sha256', $token))) return;
+    $_SESSION['email'] = auth_key($key);
+}
+
+// --- Signing up -------------------------------------------------------------
+
+// Codes get read off a whiteboard or a WhatsApp message, so case and the dashes
+// people insert are ignored on both sides of the comparison.
+function auth_normalise_code(string $code): string {
+    return strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $code));
+}
+
+function auth_new_code(): string {
+    // No O/0/I/1: these are read aloud and copied by hand.
+    $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    $out = '';
+    for ($i = 0; $i < 8; $i++) $out .= $alphabet[random_int(0, strlen($alphabet) - 1)];
+    return substr($out, 0, 4) . '-' . substr($out, 4);
+}
+
+// A right code activates on the spot. Anything else, including no code at all,
+// lands in the admin queue rather than being refused: a faculty member who
+// missed the memo must still end up somewhere an admin can see them.
+//
+// $f carries the onboarding form: name, erp, unit, dept, designation, email,
+// password, code. ERP is required for ADYPU faculty; partner faculty may not
+// have one, so for them it is optional.
+function auth_signup(array $f): string {
+    $name = trim((string) ($f['name'] ?? ''));
+    $key = auth_key((string) ($f['email'] ?? ''));
+    $unit = (string) ($f['unit'] ?? '');
+    $erp = strtoupper(trim((string) ($f['erp'] ?? '')));
+    $dept = trim((string) ($f['dept'] ?? ''));
+    $designation = trim((string) ($f['designation'] ?? ''));
+    $password = (string) ($f['password'] ?? '');
+
+    if ($name === '') return 'Please enter your name.';
+    if (!unit_exists($unit)) return 'Please choose your school or knowledge partner.';
+    if ($erp === '' && unit_kind($unit) === 'adypu') return 'Please enter your ERP number.';
+    if ($dept === '') return 'Please choose your department.';
+    if (!in_array($designation, DESIGNATIONS, true)) return 'Please choose your designation.';
+    if (!filter_var($key, FILTER_VALIDATE_EMAIL)) return 'That does not look like an email address.';
+    if (strlen($password) < AUTH_MIN_PASSWORD) return 'Please choose a password of at least ' . AUTH_MIN_PASSWORD . ' characters.';
+    if (auth_find($key)) return 'There is already an account for that email. Try signing in.';
+    if ($erp !== '') {
+        foreach (auth_data()['users'] as $u) {
+            if (($u['erp'] ?? '') === $erp) return 'That ERP number already has an account. Try signing in, or ask an admin.';
+        }
+    }
+
+    $codes = auth_data()['codes'];
+    $given = auth_normalise_code((string) ($f['code'] ?? ''));
+    $expected = auth_normalise_code((string) ($codes[$unit] ?? ''));
+    $active = $given !== '' && $expected !== '' && hash_equals($expected, $given);
+
+    auth_put($key, [
+        'name'        => $name,
+        'erp'         => $erp,
+        'unit'        => $unit,
+        'dept'        => $dept,
+        'designation' => $designation,
+        'hash'        => password_hash($password, PASSWORD_DEFAULT),
+        'status'      => $active ? 'active' : 'pending',
+        'admin'       => false,
+        'created'     => date('Y-m-d H:i'),
+        'fails'       => 0,
+        'locked'      => 0,
+    ]);
+    return '';
+}
+
+// Profile fields a faculty member can change for themselves. Unit and ERP are
+// not among them: moving schools changes whose totals their papers count in,
+// so that is an admin's edit.
+function auth_update_profile(string $email, string $name, string $dept, string $designation): string {
+    $name = trim($name);
+    $dept = trim($dept);
+    if ($name === '') return 'Please enter your name.';
+    if ($dept === '') return 'Please choose your department.';
+    if (!in_array($designation, DESIGNATIONS, true)) return 'Please choose your designation.';
+    auth_put($email, ['name' => $name, 'dept' => $dept, 'designation' => $designation]);
+    return '';
+}
+
+function auth_change_password(string $email, string $current, string $new): string {
+    $key = auth_key($email);
+    $u = auth_find($key);
+
+    // The bootstrap admin has no stored record to check against, so it verifies
+    // the config hash instead, and a successful change writes it into the
+    // store for the first time. That promotion is what makes the account
+    // changeable at all: its password otherwise lives in a file that only FTP
+    // can reach, which is no use to whoever is actually holding the phone.
+    $bootstrap = $u === null && defined('ADMIN_EMAIL') && defined('ADMIN_HASH')
+        && ADMIN_EMAIL !== '' && $key === auth_key(ADMIN_EMAIL);
+
+    $verified = $bootstrap
+        ? password_verify($current, ADMIN_HASH)
+        : ($u !== null && password_verify($current, $u['hash'] ?? ''));
+    if (!$verified) return 'Your current password is not right.';
+    if (strlen($new) < AUTH_MIN_PASSWORD) return 'The new password needs at least ' . AUTH_MIN_PASSWORD . ' characters.';
+    if ($new === $current) return 'That is the password you already have.';
+
+    if ($bootstrap) {
+        auth_put($key, [
+            'name'    => 'Administrator',
+            'unit'    => '',
+            'hash'    => password_hash($new, PASSWORD_DEFAULT),
+            'status'  => 'active',
+            'admin'   => true,
+            'created' => date('Y-m-d H:i'),
+            'fails'   => 0,
+            'locked'  => 0,
+        ]);
+    } else {
+        auth_put($key, ['hash' => password_hash($new, PASSWORD_DEFAULT)]);
+    }
+    // Every other device is signed out: a password change is the one action
+    // that should end a session someone else may be holding.
+    auth_put($key, ['remember' => '']);
+    auth_remember($key);
+    return '';
+}
+
+// There is no "email me a reset link" on this host, so an admin generating one
+// temporary password and reading it out is the whole recovery story.
+function auth_reset_password(string $email): string {
+    $temp = auth_new_code() . auth_new_code();
+    auth_put($email, ['hash' => password_hash($temp, PASSWORD_DEFAULT), 'remember' => '', 'fails' => 0, 'locked' => 0]);
+    return $temp;
+}
+
+// --- CSRF -------------------------------------------------------------------
+
+function csrf_token(): string {
+    auth_session();
+    if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(16));
+    return $_SESSION['csrf'];
+}
+
+function csrf_field(): string {
+    return '<input type="hidden" name="csrf" value="' . htmlspecialchars(csrf_token()) . '">';
+}
+
+function csrf_ok(): bool {
+    return !empty($_SESSION['csrf']) && hash_equals($_SESSION['csrf'], (string) ($_POST['csrf'] ?? ''));
+}
