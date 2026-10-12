@@ -167,4 +167,24 @@
   document.addEventListener('click', function (ev) {
     $$('details.menu[open]').forEach(function (m) { if (!m.contains(ev.target)) m.removeAttribute('open'); });
   });
+
+  // A menu inside a table sits in a card that scrolls sideways, which clips it
+  // and makes you scroll to reach the bottom items. Float it over the page
+  // instead, opening upwards when there is no room below.
+  document.addEventListener('toggle', function (ev) {
+    var m = ev.target;
+    if (!m.matches || !m.matches('details.menu') || !m.closest('.table-card, .table-scroll')) return;
+    var panel = $('.menu-panel', m);
+    if (!m.open) { panel.removeAttribute('style'); return; }
+    var r = m.querySelector('summary').getBoundingClientRect();
+    panel.style.position = 'fixed';
+    panel.style.right = (document.documentElement.clientWidth - r.right) + 'px';
+    var h = panel.offsetHeight;
+    panel.style.top = (r.bottom + 6 + h > innerHeight && r.top - 6 - h > 0 ? r.top - 6 - h : r.bottom + 6) + 'px';
+  }, true);
+  ['scroll', 'resize'].forEach(function (e) {
+    addEventListener(e, function () {
+      $$('details.menu[open]').forEach(function (m) { if (m.closest('.table-card, .table-scroll')) m.removeAttribute('open'); });
+    }, true);
+  });
 })();
