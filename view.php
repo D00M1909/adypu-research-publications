@@ -21,7 +21,8 @@ $t = pub_type($p['type']);
 $mineView = $p['owner'] === $u['email'];
 $crumb = $mineView ? '<a href="mine.php">My publications</a>' : '<a href="list.php">All publications</a>';
 page_head($t['name'], $mineView ? 'mine' : 'all', $crumb . ' / ' . e($p['ay']),
-    '<a class="btn" href="add.php?id=' . e($p['id']) . '">' . icon('edit') . 'Edit</a>');
+    '<a class="btn" href="add.php?id=' . e($p['id']) . '">' . icon('edit') . 'Edit</a>',
+    back_url($mineView ? 'mine.php' : 'list.php'));
 echo flash();
 ?>
 <section class="card form-card">

@@ -38,8 +38,8 @@
   color-scheme: light;
 }
 
-/* Dark mode. The head script sets data-theme from the saved choice or the
-   system setting, so without JS the site stays light. */
+/* Dark mode, only when chosen with the toggle. The head script sets data-theme
+   from that saved choice; everyone else, and anyone without JS, gets light. */
 :root[data-theme="dark"] {
   --red-primary: #e8404f;
   --red-secondary: #c22536;
@@ -148,6 +148,9 @@ body.app { display: grid; grid-template-columns: var(--side-w) minmax(0, 1fr); m
 .wrap { display: flex; flex-direction: column; min-width: 0; }
 .topbar { display: flex; align-items: center; gap: 14px; padding: 14px 28px; background: var(--surface-raised); border-bottom: 1px solid var(--hairline); flex-wrap: wrap; position: sticky; top: 0; z-index: 10; }
 .topbar h1 { margin: 0; font-size: 19px; }
+.back-btn { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--hairline); background: var(--surface-raised); color: var(--ink); flex-shrink: 0; box-shadow: var(--shadow-sm); }
+.back-btn:hover { border-color: var(--red-border); color: var(--red-primary); }
+.back-btn .ic { width: 18px; height: 18px; transform: rotate(180deg); }
 .crumbs { font-size: 12.5px; color: var(--ink-muted); }
 .crumbs a { text-decoration: none; } .crumbs a:hover { color: var(--red-primary); }
 .crumbs b { color: var(--red-primary); font-weight: 600; }

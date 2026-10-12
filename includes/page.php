@@ -33,14 +33,13 @@ function html_head(string $title, bool $themed = true): void {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <?php if ($themed): ?>
 <script>
-// Runs before the page paints so dark mode never flashes light. A saved choice
-// wins; otherwise the site follows the system setting, live.
+// Runs before the page paints so dark mode never flashes light. Light unless
+// this browser chose dark with the toggle.
 (function () {
-  var root = document.documentElement, mq = matchMedia('(prefers-color-scheme: dark)'), saved = null;
+  var root = document.documentElement, saved = null;
   try { saved = localStorage.getItem('theme'); } catch (e) {}
   var set = function (t) { root.dataset.theme = t; };
-  set(saved || (mq.matches ? 'dark' : 'light'));
-  mq.addEventListener('change', function (e) { if (!saved) set(e.matches ? 'dark' : 'light'); });
+  set(saved === 'dark' ? 'dark' : 'light');
   document.addEventListener('click', function (e) {
     if (!e.target.closest('[data-theme-toggle]')) return;
     saved = root.dataset.theme === 'dark' ? 'light' : 'dark';
@@ -62,17 +61,31 @@ function html_head(string $title, bool $themed = true): void {
 }
 
 // $crumb is the small grey line above the title; $actions is raw HTML for the
-// right of the top bar; $active names the sidebar item to highlight.
-function page_head(string $title, string $active, string $crumb = '', string $actions = ''): array {
+// right of the top bar; $active names the sidebar item to highlight; $back,
+// when given, puts a back arrow before the title.
+function page_head(string $title, string $active, string $crumb = '', string $actions = '', string $back = ''): array {
     $u = auth_require();
     html_head($title);
     echo '<body class="app">' . icon_sprite();
     echo sidebar($u, $active);
     echo '<div class="wrap"><header class="topbar">'
        . '<button class="menu-btn" type="button" aria-label="Menu" onclick="document.body.classList.toggle(\'nav-open\')">' . icon('menu') . '</button>'
+       . ($back !== '' ? '<a class="back-btn" href="' . e($back) . '" title="Back" aria-label="Back">' . icon('chevron') . '</a>' : '')
        . '<div class="topbar-title">' . ($crumb !== '' ? '<div class="crumbs">' . $crumb . '</div>' : '') . '<h1>' . e($title) . '</h1></div>'
        . '<span class="spacer"></span><div class="topbar-actions">' . $actions . '</div></header><main class="content">';
     return $u;
+}
+
+// Where a back arrow should go: the list the person came from, filters and
+// all, when it was one of ours; otherwise $fallback. Only a fixed set of list
+// pages counts, so coming back from an edit or another site lands somewhere sane.
+function back_url(string $fallback): string {
+    $ref = parse_url((string) ($_SERVER['HTTP_REFERER'] ?? ''));
+    $host = ($ref['host'] ?? '') . (isset($ref['port']) ? ':' . $ref['port'] : '');
+    if ($host === '' || $host !== ($_SERVER['HTTP_HOST'] ?? '')) return $fallback;
+    $page = basename($ref['path'] ?? '');
+    if (!in_array($page, ['admin.php', 'school.php', 'list.php', 'mine.php', 'accounts.php'], true)) return $fallback;
+    return $page . (isset($ref['query']) ? '?' . $ref['query'] : '');
 }
 
 function page_foot(array $scripts = []): void {
