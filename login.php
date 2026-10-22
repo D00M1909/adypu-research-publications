@@ -123,5 +123,7 @@ html_head($mode === 'signup' ? 'Create account' : 'Sign in');
 <?php endif ?>
 </main>
 <script src="<?= asset('js/app.js') ?>"></script>
+<!-- "Back to ADYPU Compass" button and feedback note, shared by every ADYPU site. -->
+<script src="https://adypu.pages.dev/embed/compass-link.js" defer></script>
 </body>
 </html>

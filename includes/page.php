@@ -92,6 +92,9 @@ function page_foot(array $scripts = []): void {
     echo '</main><footer class="site-footer"><span>ADYPU Research Publications</span>'
        . '<span>Built by <a href="https://github.com/D00M1909" target="_blank" rel="noopener">Advait</a></span></footer></div>';
     foreach ($scripts as $s) echo '<script src="' . asset($s) . '"></script>';
+    // The "Back to ADYPU Compass" button and feedback note, shared by every
+    // ADYPU site and served from the Compass site.
+    echo '<script src="https://adypu.pages.dev/embed/compass-link.js" defer></script>';
     echo "</body>\n</html>\n";
 }
 
