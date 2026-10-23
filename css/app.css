@@ -162,15 +162,16 @@ body.app { display: grid; grid-template-columns: var(--side-w) minmax(0, 1fr); m
 .site-footer { display: flex; justify-content: space-between; gap: 12px; padding: 14px 28px; font-size: 12.5px; color: var(--ink-muted); border-top: 1px solid var(--hairline); }
 .site-footer a { color: var(--red-primary); text-decoration: none; font-weight: 600; }
 
-/* The shared back-to-Compass button, moved into the sidebar just above the
-   user card (see sidebar() in page.php): it takes the card's place at the foot
-   of the menu, and the card follows it. */
-.side .adypu-cx-link { position: static; align-self: flex-start; margin: auto 0 4px; }
-.side .adypu-cx-link + .who { margin-top: 0; }
-/* Its note lands after the page in the body's grid; keep it under the content,
-   without the room it leaves for a button that is no longer below it. */
+/* The shared back-to-Compass note lands after the page, in the body's grid.
+   Signed in, it goes under the content. On the sign-in page it goes under the
+   form, and the red panel runs the full height beside both; there the button
+   floats over the panel, so the note needs no room left for it. (The button
+   moves itself clear of the user card in the sidebar.) */
 body.app > .adypu-cx-note { grid-column: 2; }
-body.app > .adypu-cx-note.adypu-cx-clear { padding-bottom: 22px; }
+body.auth { grid-template-rows: minmax(0, 1fr) auto; }
+body.auth > .auth-side { grid-row: 1 / span 2; }
+body.auth > .adypu-cx-note { grid-column: 2; }
+body.auth > .adypu-cx-note.adypu-cx-clear { padding-bottom: 22px; }
 
 /* ---------- Controls ---------- */
 
@@ -449,8 +450,11 @@ body.print-page { background: #fff; padding: 24px; }
   .fgrid .w2, .fgrid .w3 { grid-column: auto; }
   .stepper { flex-wrap: wrap; gap: 10px; } .line { display: none; }
   .dl { grid-template-columns: minmax(0, 1fr); } .dl dt { border: 0; padding-bottom: 0; }
-  body.auth { grid-template-columns: minmax(0, 1fr); }
+  body.auth { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
   .auth-side { padding: 28px 20px; }
+  body.auth > .auth-side { grid-row: auto; }
+  body.auth > .adypu-cx-note { grid-column: auto; }
+  body.auth > .adypu-cx-note.adypu-cx-clear { padding-bottom: 84px; }
   .grid2 { grid-template-columns: minmax(0, 1fr); }
   .site-footer { padding: 14px 16px; }
 }

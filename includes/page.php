@@ -127,12 +127,7 @@ function sidebar(array $u, string $active): string {
     $sub = ($u['erp'] ?? '') !== '' ? 'ERP ' . $u['erp'] : $u['email'];
     $h .= '<div class="who"><span class="avatar">' . e(mb_strtoupper($initials)) . '</span><span class="who-text"><b>' . e($u['name'] ?? '') . '</b><span>' . str_replace('@', '<wbr>@', e($sub)) . '</span></span>'
         . '<div class="who-acts"><button class="who-out theme-btn" type="button" data-theme-toggle title="Light or dark" aria-label="Switch light or dark mode">' . icon('moon', 'ic-moon') . icon('sun', 'ic-sun') . '</button>'
-        . '<a class="who-out" href="login.php?logout=1" title="Sign out" aria-label="Sign out">' . icon('out') . '</a></div></div>'
-        // The shared back-to-Compass button floats in the page's bottom-left
-        // corner, which here is this card. Moved into the sidebar just above
-        // it, the button scrolls with the menu and covers nothing. It exists
-        // by DOMContentLoaded, since the deferred script adds it before that.
-        . '<script>document.addEventListener(\'DOMContentLoaded\', function () { var b = document.querySelector(\'body > .adypu-cx-link\'), w = document.querySelector(\'.side .who\'); if (b && w) w.before(b); });</script></aside>'
+        . '<a class="who-out" href="login.php?logout=1" title="Sign out" aria-label="Sign out">' . icon('out') . '</a></div></div></aside>'
         . '<div class="nav-scrim" onclick="document.body.classList.remove(\'nav-open\')"></div>';
     return $h;
 }
